@@ -2,4 +2,5 @@ node_modules/
 dist/
 .reference-whiteboard/
 *.local
+*.log
 src-tauri/target/

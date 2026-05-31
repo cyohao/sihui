@@ -23,10 +23,18 @@ body,
   margin: 0;
 }
 
+body {
+  overflow: hidden;
+}
+
+.app-shell {
+  position: relative;
+  overflow: hidden;
+}
+
 .editor-shell {
-  width: 100%;
-  height: calc(100% - 48px);
-  margin: 48px 0 0;
+  position: absolute;
+  inset: 48px 0 0;
 }
 
 button {
@@ -264,4 +272,75 @@ button {
   .topbar {
     overflow-x: auto;
   }
+}
+
+.mindmap-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.32);
+}
+
+.mindmap-dialog {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(17, 24, 39, 0.24);
+}
+
+.mindmap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 16px;
+}
+
+.mindmap-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mindmap-input {
+  width: 100%;
+  min-height: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fcfcfd;
+  color: #202124;
+  font-family: "Cascadia Code", Consolas, "Microsoft YaHei", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.mindmap-input:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.mindmap-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mindmap-primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.mindmap-primary:hover {
+  background: #1d4ed8;
+  color: #ffffff;
 }
