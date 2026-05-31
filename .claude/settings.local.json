@@ -4,7 +4,9 @@
       "Bash(grep -A2 '^name = \"tauri\"$' Cargo.lock)",
       "Bash(cargo check *)",
       "Bash(npm run *)",
-      "Bash(tee D:/project/other/baiban/build.log)"
+      "Bash(tee D:/project/other/baiban/build.log)",
+      "Bash(node -e \"const e=require\\('./node_modules/@excalidraw/excalidraw/package.json'\\); console.log\\('version', e.version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/@excalidraw/excalidraw/package.json'\\); console.log\\(JSON.stringify\\(p.exports,null,1\\)\\)\")"
     ]
   }
 }

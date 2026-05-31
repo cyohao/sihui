@@ -8,7 +8,8 @@ use tauri::{
 const MAIN_WINDOW_LABEL: &str = "main";
 
 const DATA_DIRECTORY: &str = "思绘数据";
-const DATA_FILE: &str = "boards.json";
+const BOARDS_DIRECTORY: &str = "boards";
+const LEGACY_FILE: &str = "boards.json";
 
 fn data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let base = app
@@ -21,64 +22,110 @@ fn data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn data_file(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    Ok(data_directory(app)?.join(DATA_FILE))
+// 每个白板一个文件，存放于「思绘数据/boards/」目录下。
+fn boards_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let directory = data_directory(app)?.join(BOARDS_DIRECTORY);
+    fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    Ok(directory)
 }
 
-fn ensure_data_file(app: &tauri::AppHandle) -> Result<(), String> {
-    let file = data_file(app)?;
-    if !file.exists() {
-        fs::write(file, r#"{"version":1,"boards":[]}"#).map_err(|error| error.to_string())?;
+// 仅允许安全的文件名字符，避免路径穿越（白板 id 是 UUID）。
+fn board_file_path(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err("非法的白板 id".to_string());
+    }
+    Ok(boards_directory(app)?.join(format!("{id}.json")))
+}
+
+// 把旧版单一的 boards.json 拆分为「一白板一文件」。仅在 boards 目录为空且旧文件存在时执行一次。
+fn migrate_legacy(app: &tauri::AppHandle) -> Result<(), String> {
+    let directory = boards_directory(app)?;
+    let already_has_files = fs::read_dir(&directory)
+        .map_err(|error| error.to_string())?
+        .filter_map(Result::ok)
+        .any(|entry| entry.path().extension().map(|ext| ext == "json").unwrap_or(false));
+    if already_has_files {
+        return Ok(());
     }
 
+    let legacy = data_directory(app)?.join(LEGACY_FILE);
+    if !legacy.exists() {
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&legacy).map_err(|error| error.to_string())?;
+    let value: serde_json::Value =
+        serde_json::from_str(&content).map_err(|error| error.to_string())?;
+
+    if let Some(boards) = value.get("boards").and_then(|boards| boards.as_array()) {
+        for board in boards {
+            if let Some(id) = board.get("id").and_then(|id| id.as_str()) {
+                let path = board_file_path(app, id)?;
+                let serialized = serde_json::to_string_pretty(board).map_err(|e| e.to_string())?;
+                fs::write(path, serialized).map_err(|error| error.to_string())?;
+            }
+        }
+    }
+
+    // 保留旧文件作为备份，改名避免重复迁移。
+    let _ = fs::rename(&legacy, legacy.with_extension("json.migrated"));
+    Ok(())
+}
+
+// 读取全部白板文件内容（每个元素是一个白板的 JSON 字符串）。
+#[tauri::command]
+fn list_board_files(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    migrate_legacy(&app)?;
+
+    let directory = boards_directory(&app)?;
+    let mut boards = Vec::new();
+    for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if path.extension().map(|ext| ext == "json").unwrap_or(false) {
+            match fs::read_to_string(&path) {
+                Ok(content) => boards.push(content),
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+    }
+    Ok(boards)
+}
+
+// 原子写入单个白板文件（tmp + rename）。
+#[tauri::command]
+fn save_board_file(app: tauri::AppHandle, id: String, content: String) -> Result<(), String> {
+    serde_json::from_str::<serde_json::Value>(&content).map_err(|error| error.to_string())?;
+
+    let file = board_file_path(&app, &id)?;
+    let temporary_file = file.with_extension("json.tmp");
+    fs::write(&temporary_file, content).map_err(|error| error.to_string())?;
+
+    if let Err(error) = fs::rename(&temporary_file, &file) {
+        let _ = fs::remove_file(&temporary_file);
+        return Err(error.to_string());
+    }
     Ok(())
 }
 
 #[tauri::command]
-fn load_boards_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let file = data_file(&app)?;
-    let backup_file = file.with_extension("json.bak");
-
-    if !file.exists() {
-        if backup_file.exists() {
-            fs::rename(&backup_file, &file).map_err(|error| error.to_string())?;
-        } else {
-            return Ok(None);
-        }
+fn delete_board_file(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let file = board_file_path(&app, &id)?;
+    if file.exists() {
+        fs::remove_file(file).map_err(|error| error.to_string())?;
     }
-
-    fs::read_to_string(file).map(Some).map_err(|error| error.to_string())
+    Ok(())
 }
 
+// 清空所有白板文件（用于「恢复全部」前的重置）。
 #[tauri::command]
-fn save_boards_file(app: tauri::AppHandle, content: String) -> Result<(), String> {
-    serde_json::from_str::<serde_json::Value>(&content).map_err(|error| error.to_string())?;
-
-    let file = data_file(&app)?;
-    let temporary_file = file.with_extension("json.tmp");
-    let backup_file = file.with_extension("json.bak");
-    fs::write(&temporary_file, content).map_err(|error| error.to_string())?;
-
-    if backup_file.exists() {
-        fs::remove_file(&backup_file).map_err(|error| error.to_string())?;
-    }
-
-    if file.exists() {
-        fs::rename(&file, &backup_file).map_err(|error| error.to_string())?;
-    }
-
-    if let Err(error) = fs::rename(&temporary_file, &file) {
-        if backup_file.exists() {
-            let _ = fs::rename(&backup_file, &file);
+fn clear_board_files(app: tauri::AppHandle) -> Result<(), String> {
+    let directory = boards_directory(&app)?;
+    for entry in fs::read_dir(&directory).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        if path.extension().map(|ext| ext == "json").unwrap_or(false) {
+            fs::remove_file(path).map_err(|error| error.to_string())?;
         }
-
-        return Err(error.to_string());
     }
-
-    if backup_file.exists() {
-        fs::remove_file(backup_file).map_err(|error| error.to_string())?;
-    }
-
     Ok(())
 }
 
@@ -166,7 +213,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            ensure_data_file(app.handle())?;
+            boards_directory(app.handle())?;
             build_tray(app.handle())?;
             Ok(())
         })
@@ -185,8 +232,10 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            load_boards_file,
-            save_boards_file,
+            list_board_files,
+            save_board_file,
+            delete_board_file,
+            clear_board_files,
             get_data_directory,
             open_data_directory,
             export_file

@@ -13,6 +13,7 @@ const dbPromise = openDB(DATABASE_NAME, 1, {
   },
 })
 
+// 桌面端：一个白板一个文件（思绘数据/boards/<id>.json），内存缓存避免重复读盘。
 let desktopBoards: Board[] | null = null
 
 async function listBrowserBoards(): Promise<Board[]> {
@@ -20,28 +21,37 @@ async function listBrowserBoards(): Promise<Board[]> {
   return database.getAll(STORE_NAME)
 }
 
-async function writeDesktopBoards(boards: Board[]): Promise<void> {
-  await invoke('save_boards_file', {
-    content: JSON.stringify({ version: 1, boards }, null, 2),
+async function saveDesktopBoardFile(board: Board): Promise<void> {
+  await invoke('save_board_file', {
+    id: board.id,
+    content: JSON.stringify(board, null, 2),
   })
-  desktopBoards = boards
 }
 
 async function listDesktopBoards(): Promise<Board[]> {
   if (desktopBoards) return desktopBoards
 
-  const content = await invoke<string | null>('load_boards_file')
-  if (content) {
-    const boards = parseBackup(content)
-    if (boards.length > 0) {
-      desktopBoards = boards
+  const contents = await invoke<string[]>('list_board_files')
+  const boards: Board[] = []
+  for (const content of contents) {
+    try {
+      boards.push(JSON.parse(content) as Board)
+    } catch {
+      // 跳过损坏的文件
+    }
+  }
+
+  // 全新桌面端（无文件、无旧 boards.json）：迁移浏览器里已有的数据。
+  if (boards.length === 0) {
+    const browserBoards = await listBrowserBoards()
+    if (browserBoards.length > 0) {
+      for (const board of browserBoards) await saveDesktopBoardFile(board)
+      desktopBoards = browserBoards
       return desktopBoards
     }
   }
 
-  // First desktop launch: keep existing browser data if the user has any.
-  desktopBoards = await listBrowserBoards()
-  await writeDesktopBoards(desktopBoards)
+  desktopBoards = boards
   return desktopBoards
 }
 
@@ -76,9 +86,8 @@ export async function listBoards(): Promise<Board[]> {
 export async function putBoard(board: Board): Promise<void> {
   if (isTauri()) {
     const boards = await listDesktopBoards()
-    const nextBoards = boards.filter((item) => item.id !== board.id)
-    nextBoards.push(board)
-    await writeDesktopBoards(nextBoards)
+    desktopBoards = [...boards.filter((item) => item.id !== board.id), board]
+    await saveDesktopBoardFile(board)
     return
   }
 
@@ -89,7 +98,8 @@ export async function putBoard(board: Board): Promise<void> {
 export async function removeBoard(id: string): Promise<void> {
   if (isTauri()) {
     const boards = await listDesktopBoards()
-    await writeDesktopBoards(boards.filter((board) => board.id !== id))
+    desktopBoards = boards.filter((board) => board.id !== id)
+    await invoke('delete_board_file', { id })
     return
   }
 
@@ -120,7 +130,9 @@ export function parseBackup(content: string): Board[] {
 
 export async function restoreBackup(boards: Board[]): Promise<void> {
   if (isTauri()) {
-    await writeDesktopBoards(boards)
+    await invoke('clear_board_files')
+    for (const board of boards) await saveDesktopBoardFile(board)
+    desktopBoards = boards
     return
   }
 
