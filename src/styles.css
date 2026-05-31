@@ -1,0 +1,267 @@
+:root {
+  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+  color: #202124;
+  background: #f8f9fa;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --surface: #ffffff;
+  --hover: #f3f4f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+.app-shell {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+.editor-shell {
+  width: 100%;
+  height: calc(100% - 48px);
+  margin: 48px 0 0;
+}
+
+button {
+  font: inherit;
+}
+
+.loading-screen {
+  display: grid;
+  height: 100vh;
+  place-items: center;
+  color: #667085;
+}
+
+.topbar {
+  position: fixed;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  pointer-events: none;
+}
+
+.topbar > * {
+  pointer-events: auto;
+}
+
+.topbar-button,
+.icon-button,
+.new-board-button,
+.board-actions button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.topbar-button {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 13px;
+}
+
+.topbar-button:hover,
+.icon-button:hover,
+.board-actions button:hover {
+  background: var(--hover);
+  color: #111827;
+}
+
+.topbar-button:focus-visible,
+.icon-button:focus-visible,
+.new-board-button:focus-visible,
+.board-main:focus-visible,
+.board-actions button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.board-title {
+  max-width: 240px;
+  overflow: hidden;
+  padding: 7px 8px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-state {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.save-state-error {
+  color: #b42318;
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  z-index: 9;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(17, 24, 39, 0.12);
+}
+
+.sidebar {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(320px, 92vw);
+  padding: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  transform: translateX(-105%);
+  transition: transform 160ms ease;
+}
+
+.sidebar-open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 60px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header span,
+.board-main span {
+  display: block;
+  margin-top: 4px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.new-board-button {
+  width: calc(100% - 24px);
+  margin: 12px;
+  padding: 9px 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.new-board-button:hover {
+  background: #1d4ed8;
+}
+
+.board-list {
+  border-top: 1px solid var(--border);
+}
+
+.board-card {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.board-card-active {
+  background: var(--accent-soft);
+}
+
+.board-card-active::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--accent);
+  content: "";
+}
+
+.board-main {
+  width: 100%;
+  padding: 11px 14px 7px;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+}
+
+.board-main:hover {
+  background: rgba(243, 244, 246, 0.64);
+}
+
+.board-actions {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px 8px;
+}
+
+.board-actions button {
+  padding: 4px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.excalidraw {
+  --border-radius-lg: 4px;
+  --border-radius-md: 4px;
+  --shadow-island: none;
+}
+
+.excalidraw .Island {
+  border: 1px solid var(--border);
+}
+
+.excalidraw .help-icon,
+.excalidraw .collab-button {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .board-title,
+  .save-state {
+    display: none;
+  }
+
+  .topbar {
+    overflow-x: auto;
+  }
+}
