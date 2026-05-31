@@ -97,6 +97,32 @@ fn open_data_directory(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+// 桌面端导出：弹出保存对话框让用户选位置，再写入文件。
+// 内容以 base64 传入，可同时支持文本（JSON/SVG）和二进制（PNG）。
+#[tauri::command]
+fn export_file(app: tauri::AppHandle, filename: String, data_base64: String) -> Result<bool, String> {
+    use base64::Engine;
+    use tauri_plugin_dialog::DialogExt;
+
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_base64.as_bytes())
+        .map_err(|error| error.to_string())?;
+
+    let chosen = app
+        .dialog()
+        .file()
+        .set_file_name(&filename)
+        .blocking_save_file();
+
+    let Some(path) = chosen else {
+        return Ok(false); // 用户取消
+    };
+
+    let target = path.into_path().map_err(|error| error.to_string())?;
+    fs::write(target, bytes).map_err(|error| error.to_string())?;
+    Ok(true)
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         let _ = window.unminimize();
@@ -138,6 +164,7 @@ fn build_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             ensure_data_file(app.handle())?;
             build_tray(app.handle())?;
@@ -161,7 +188,8 @@ pub fn run() {
             load_boards_file,
             save_boards_file,
             get_data_directory,
-            open_data_directory
+            open_data_directory,
+            export_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running sihui");

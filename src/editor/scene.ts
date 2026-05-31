@@ -3,6 +3,7 @@ import {
   exportToSvg,
   serializeAsJSON,
 } from '@excalidraw/excalidraw'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import type {
   AppState,
   BinaryFiles,
@@ -40,12 +41,39 @@ export function downloadText(text: string, filename: string): void {
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {
+  // 桌面端（Tauri）的 webview 不支持 <a download> 下载，改走后端保存对话框。
+  if (isTauri()) {
+    void saveBlobOnDesktop(blob, filename)
+    return
+  }
+
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
   link.download = filename
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.slice(result.indexOf(',') + 1)) // 去掉 data:...;base64, 前缀
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function saveBlobOnDesktop(blob: Blob, filename: string): Promise<void> {
+  try {
+    const dataBase64 = await blobToBase64(blob)
+    await invoke('export_file', { filename, dataBase64 })
+  } catch {
+    window.alert('保存文件失败')
+  }
 }
 
 export async function exportSceneAsPng(scene: BoardScene): Promise<void> {
